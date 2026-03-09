@@ -84,7 +84,6 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transform: scaleX(-1);
     }
 
     canvas#overlay {
@@ -982,10 +981,15 @@ function getPhotoSize() {
       const scaleY = size.h / vh;
 
       captureCtx.save();
-      captureCtx.translate(size.w, 0);
-      captureCtx.scale(-1, 1);
-      captureCtx.drawImage(video, 0, 0, size.w, size.h);
-      captureCtx.restore();
+
+if (currentFacingMode === "user") {
+  captureCtx.translate(size.w, 0);
+  captureCtx.scale(-1, 1);
+}
+
+captureCtx.drawImage(video, 0, 0, size.w, size.h);
+
+captureCtx.restore();
 
       // Draw overlay scaled
       captureCtx.save();
@@ -1084,28 +1088,27 @@ function getPhotoSize() {
     });
     
     let currentFacingMode = "user";
-    
+
     async function startCamera(facingMode = "user") {
   currentFacingMode = facingMode;
 
-  if (camera) {
-    try {
-      await camera.stop();
-    } catch {}
-  }
-
   const stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode: facingMode
-    }
+    video: { facingMode: facingMode }
   });
 
   video.srcObject = stream;
-}
 
-document.getElementById("cameraSelect").addEventListener("change", e => {
-  startCamera(e.target.value);
-});
+  updateMirror();
+}
+    
+    function updateMirror() {
+  if (currentFacingMode === "user") {
+    video.style.transform = "scaleX(-1)";
+  } else {
+    video.style.transform = "scaleX(1)";
+  }
+    }
+    
   </script>
 </body>
 </html>
