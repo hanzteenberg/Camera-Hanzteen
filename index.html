@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kamera dengan Tracking Mata Kiri</title>
+  <title>Camera-Hanzteen</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -804,8 +804,8 @@
       const h = overlay.height;
 
       if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-        document.getElementById('faceStatus').innerHTML = '<span class="status-badge status-not-detected">Tidak Terdeteksi</span>';
-        document.getElementById('eyeStatus').innerHTML  = '<span class="status-badge status-not-detected">Tidak Terdeteksi</span>';
+        document.getElementById('faceStatus').innerHTML = '<span class="status-badge status-not-detected">Not Detected</span>';
+        document.getElementById('eyeStatus').innerHTML  = '<span class="status-badge status-not-detected">Not Detected</span>';
         ['irisX','irisY','irisEAR'].forEach(id => {
           document.getElementById(id).textContent = '—';
         });
@@ -816,7 +816,7 @@
       }
 
       const lm = results.multiFaceLandmarks[0];
-      document.getElementById('faceStatus').innerHTML = '<span class="status-badge status-detected">Terdeteksi ✓</span>';
+      document.getElementById('faceStatus').innerHTML = '<span class="status-badge status-detected">Detected ✓</span>';
 
       const ear = computeEAR(lm, w, h);
 
@@ -825,19 +825,19 @@
         if (!isBlinking) {
           isBlinking = true;
           blinkCount++;
-          document.getElementById('blinkCount').textContent = blinkCount + ' kali';
+          document.getElementById('blinkCount').textContent = blinkCount + ' Times';
         }
-        document.getElementById('blinkStatus').innerHTML = '<span class="status-badge status-loading">Berkedip 👁️</span>';
+        document.getElementById('blinkStatus').innerHTML = '<span class="status-badge status-loading">Blink️ing</span>';
       } else {
         isBlinking = false;
-        document.getElementById('blinkStatus').innerHTML = '<span class="status-badge status-detected">Terbuka ✓</span>';
+        document.getElementById('blinkStatus').innerHTML = '<span class="status-badge status-detected">Open ✓</span>';
       }
 
       // Draw radar
       const info = drawLeftEye(lm, w, h);
 
       if (info) {
-        document.getElementById('eyeStatus').innerHTML = '<span class="status-badge status-detected">Terdeteksi ✓</span>';
+        document.getElementById('eyeStatus').innerHTML = '<span class="status-badge status-detected">Detected ✓</span>';
 
         const xPct = info.xPct;
         const yPct = info.yPct;
