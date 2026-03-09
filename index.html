@@ -493,18 +493,26 @@
         <!-- Ukuran Foto -->
         <div class="option-group">
           <label> Size:</label>
-          <select id="sizeSelect">
-            <option value="640x480">640 × 480 (VGA)</option>
-            <option value="800x600">800 × 600 (SVGA)</option>
-            <option value="1280x720" selected>1280 × 720 (HD)</option>
-            <option value="1920x1080">1920 × 1080 (Full HD)</option>
-            <option value="custom">custom...</option>
-          </select>
+            <select id="sizeSelect">
+              <option value="original">Original (Camera)</option>
+              <option value="640x480">640 × 480 (VGA)</option>
+              <option value="800x600">800 × 600 (SVGA)</option>
+              <option value="1280x720" selected>1280 × 720 (HD)</option>
+              <option value="1920x1080">1920 × 1080 (Full HD)</option>
+              <option value="custom">custom...</option>
+            </select>
         </div>
-        <div class="option-group" id="customSizeGroup" style="display:none;">
+            <div class="option-group" id="customSizeGroup" style="display:none;">
           <input type="number" id="customW" placeholder="Lebar" style="width:80px;" min="100" max="4000" value="1280"/>
           <span style="color:#555;">×</span>
           <input type="number" id="customH" placeholder="Tinggi" style="width:80px;" min="100" max="4000" value="720"/>
+        </div>
+        <div class="option-group">
+          <label>Camera:</label>
+          <select id="cameraSelect">
+            <option value="user">Front Camera</option>
+            <option value="environment">Rear Camera</option>
+            </select>
         </div>
       </div>
 
@@ -901,16 +909,25 @@
       customSizeGroup.style.display = sizeSelect.value === 'custom' ? 'flex' : 'none';
     });
 
-    function getPhotoSize() {
-      const val = sizeSelect.value;
-      if (val === 'custom') {
-        const w = parseInt(document.getElementById('customW').value) || 1280;
-        const h = parseInt(document.getElementById('customH').value) || 720;
-        return { w, h };
-      }
-      const [w, h] = val.split('x').map(Number);
-      return { w, h };
-    }
+function getPhotoSize() {
+  const val = sizeSelect.value;
+
+  if (val === 'original') {
+    return {
+      w: video.videoWidth || 640,
+      h: video.videoHeight || 480
+    };
+  }
+
+  if (val === 'custom') {
+    const w = parseInt(document.getElementById('customW').value) || 1280;
+    const h = parseInt(document.getElementById('customH').value) || 720;
+    return { w, h };
+  }
+
+  const [w, h] = val.split('x').map(Number);
+  return { w, h };
+}
 
     // ===== TIMER BUTTONS =====
     document.querySelectorAll('.timer-btn').forEach(btn => {
@@ -1065,6 +1082,30 @@
         updateFullscreenButton();
       }
     });
+    
+    let currentFacingMode = "user";
+    
+    async function startCamera(facingMode = "user") {
+  currentFacingMode = facingMode;
+
+  if (camera) {
+    try {
+      await camera.stop();
+    } catch {}
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: facingMode
+    }
+  });
+
+  video.srcObject = stream;
+}
+
+document.getElementById("cameraSelect").addEventListener("change", e => {
+  startCamera(e.target.value);
+});
   </script>
 </body>
 </html>
