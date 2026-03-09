@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kamera dengan Tracking Mata Kiri</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f1a;
+      color: #fff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      background: linear-gradient(90deg, #00c6ff, #0072ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-align: center;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+
+    .main-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    .camera-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .video-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: min(90vw, 640px);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid #0072ff55;
+      box-shadow: 0 0 30px #0072ff44;
+      background: #020617;
+    }
+
+    .video-stage {
+      position: relative;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 4 / 3;
+      overflow: hidden;
+      background: #020617;
+    }
+
+    video {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    canvas#overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* Timer Countdown Overlay */
+    .timer-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .timer-number {
+      font-size: 120px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 0 30px #00c6ff, 0 0 60px #0072ff;
+      opacity: 0;
+      transform: scale(1.5);
+      transition: opacity 0.2s, transform 0.2s;
+      font-family: 'Courier New', monospace;
+      line-height: 1;
+    }
+
+    .timer-number.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .timer-ring {
+      position: absolute;
+      width: 160px;
+      height: 160px;
+    }
+
+    .timer-ring circle {
+      fill: none;
+      stroke: #00c6ff;
+      stroke-width: 6;
+      stroke-dasharray: 440;
+      stroke-dashoffset: 440;
+      stroke-linecap: round;
+      transform: rotate(-90deg);
+      transform-origin: center;
+      filter: drop-shadow(0 0 8px #00c6ff);
+    }
+
+    .video-wrapper:fullscreen, .video-wrapper.is-fullscreen {
+      width: 100vw; height: 100vh;
+      max-width: none; border-radius: 0; border: none; box-shadow: none; background: #000;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* Photo Options Bar */
+    .photo-options {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      background: #13132a;
+      border: 1.5px solid #0072ff33;
+      border-radius: 12px;
+      padding: 10px 16px;
+      width: 100%;
+    }
+
+    .photo-options label {
+      font-size: 0.8rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .option-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .option-group select, .option-group input[type="number"] {
+      background: #0f0f1a;
+      border: 1.5px solid #0072ff44;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 5px 10px;
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .option-group select:focus, .option-group input[type="number"]:focus {
+      border-color: #00c6ff;
+    }
+
+    .timer-btn-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .timer-btn {
+      padding: 5px 12px !important;
+      border-radius: 8px !important;
+      font-size: 0.8rem !important;
+      background: #1e293b !important;
+      color: #94a3b8 !important;
+      border: 1.5px solid #334155 !important;
+    }
+
+    .timer-btn.active {
+      background: #0c2a4a !important;
+      color: #00c6ff !important;
+      border-color: #00c6ff !important;
+    }
+
+    button {
+      padding: 10px 22px;
+      border: none;
+      border-radius: 50px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    #btnCapture {
+      background: linear-gradient(135deg, #00c6ff, #0072ff);
+      color: #fff;
+    }
+
+    #btnCapture:hover { transform: scale(1.05); box-shadow: 0 4px 18px #0072ff88; }
+    #btnCapture:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    #btnToggleTracking {
+      background: #1e293b;
+      color: #00c6ff;
+      border: 1.5px solid #00c6ff55;
+    }
+
+    #btnFullscreen {
+      background: #0b1220;
+      color: #e2e8f0;
+      border: 1.5px solid #475569;
+    }
+
+    .info-panel {
+      background: #13132a;
+      border: 1.5px solid #0072ff33;
+      border-radius: 16px;
+      padding: 18px;
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 0 20px #0072ff22;
+    }
+
+    .info-panel h2 {
+      font-size: 1rem;
+      color: #00c6ff;
+      border-bottom: 1px solid #0072ff33;
+      padding-bottom: 8px;
+    }
+
+    .info-row { display: flex; flex-direction: column; gap: 4px; }
+
+    .info-label {
+      font-size: 0.72rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .info-value { font-size: 0.9rem; color: #e2e8f0; font-weight: 500; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 50px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .status-detected { background: #064e3b; color: #34d399; border: 1px solid #34d39966; }
+    .status-not-detected { background: #7f1d1d; color: #f87171; border: 1px solid #f8717166; }
+    .status-loading { background: #1e3a5f; color: #60a5fa; border: 1px solid #60a5fa66; }
+
+    /* Iris Identity Card */
+    .iris-card {
+      background: #0a0a1f;
+      border: 1.5px solid #00ffcc44;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .iris-card-title {
+      font-size: 0.72rem;
+      color: #00ffcc;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+      border-bottom: 1px solid #00ffcc22;
+      padding-bottom: 6px;
+    }
+
+    .iris-id-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .iris-id-label { font-size: 0.72rem; color: #556; }
+    .iris-id-value { font-size: 0.8rem; color: #00ffcc; font-family: 'Courier New', monospace; font-weight: 600; }
+
+    .iris-status-bar {
+      width: 100%;
+      height: 6px;
+      background: #1e293b;
+      border-radius: 50px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+
+    .iris-status-fill {
+      height: 100%;
+      border-radius: 50px;
+      background: linear-gradient(90deg, #00ffcc, #0072ff);
+      transition: width 0.15s;
+    }
+
+    .eye-indicator {
+      width: 100%;
+      height: 70px;
+      background: #0f0f1a;
+      border-radius: 10px;
+      border: 1.5px solid #0072ff33;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .eye-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #00c6ff;
+      box-shadow: 0 0 10px #00c6ff;
+      position: absolute;
+      transition: left 0.08s, top 0.08s;
+      transform: translate(-50%, -50%);
+      display: none;
+    }
+
+    .eye-indicator-label {
+      color: #444;
+      font-size: 0.75rem;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .blink-bar {
+      width: 100%; height: 10px;
+      background: #1e293b;
+      border-radius: 50px;
+      overflow: hidden;
+      border: 1px solid #0072ff33;
+    }
+
+    .blink-fill {
+      height: 100%; border-radius: 50px;
+      background: linear-gradient(90deg, #00c6ff, #0072ff);
+      transition: width 0.1s;
+    }
+
+    .snapshot-section {
+      width: 100%;
+      max-width: 1100px;
+      margin-top: 10px;
+    }
+
+    .snapshot-section h2 {
+      font-size: 1rem; color: #00c6ff;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #0072ff33;
+      padding-bottom: 6px;
+    }
+
+    .snapshot-gallery { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    .snapshot-item {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid #0072ff44;
+      box-shadow: 0 4px 14px #0072ff22;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .snapshot-item:hover { transform: scale(1.04); }
+
+    .snapshot-item img {
+      display: block;
+      object-fit: cover;
+    }
+
+    .snap-label {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: #000a;
+      font-size: 0.62rem;
+      text-align: center;
+      padding: 3px;
+      color: #aaa;
+    }
+
+    .loading-overlay {
+      position: fixed; inset: 0;
+      background: #0f0f1aee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 52px; height: 52px;
+      border: 4px solid #0072ff33;
+      border-top-color: #00c6ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .flash {
+      position: absolute; inset: 0;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      border-radius: 14px;
+    }
+
+    .flash.active { animation: flash-anim 0.4s ease-out forwards; }
+
+    @keyframes flash-anim {
+      0% { opacity: 0.9; }
+      100% { opacity: 0; }
+    }
+
+    canvas#captureCanvas { display: none; }
+
+    @media (max-width: 700px) {
+      .video-wrapper { width: 98vw; }
+      .info-panel { width: 98vw; }
+      .photo-options { width: 98vw; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div style="color:#60a5fa; font-size:1rem; font-weight:600;">Loading Model Face Mesh...</div>
+    <div style="color:#555; font-size:0.8rem;">Please Allow Permision To Use Camera</div>
+  </div>
+
+  <h1>📷 Camera Hanzteen</h1>>
+
+  <div class="main-container">
+
+    <!-- Kamera -->
+    <div class="camera-section">
+
+      <!-- Photo Options -->
+      <div class="photo-options">
+        <!-- Timer -->
+        <div class="option-group">
+          <label>⏱ Timer:</label>
+          <div class="timer-btn-group">
+            <button class="timer-btn active" data-timer="0">OFF</button>
+            <button class="timer-btn" data-timer="3">3s</button>
+            <button class="timer-btn" data-timer="5">5s</button>
+            <button class="timer-btn" data-timer="10">10s</button>
+          </div>
+        </div>
+        <!-- Ukuran Foto -->
+        <div class="option-group">
+          <label> Size:</label>
+          <select id="sizeSelect">
+            <option value="640x480">640 × 480 (VGA)</option>
+            <option value="800x600">800 × 600 (SVGA)</option>
+            <option value="1280x720" selected>1280 × 720 (HD)</option>
+            <option value="1920x1080">1920 × 1080 (Full HD)</option>
+            <option value="custom">custom...</option>
+          </select>
+        </div>
+        <div class="option-group" id="customSizeGroup" style="display:none;">
+          <input type="number" id="customW" placeholder="Lebar" style="width:80px;" min="100" max="4000" value="1280"/>
+          <span style="color:#555;">×</span>
+          <input type="number" id="customH" placeholder="Tinggi" style="width:80px;" min="100" max="4000" value="720"/>
+        </div>
+      </div>
+
+      <div class="video-wrapper" id="videoWrapper">
+        <div class="video-stage" id="videoStage">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <!-- Timer Overlay -->
+          <div class="timer-overlay" id="timerOverlay" style="display:none;">
+            <svg class="timer-ring" id="timerRing" viewBox="0 0 160 160">
+              <circle cx="80" cy="80" r="70" id="timerCircle"/>
+            </svg>
+            <span class="timer-number" id="timerNumber">3</span>
+          </div>
+          <div class="flash" id="flash"></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="btnCapture">📸 Take Picture</button>
+        <button id="btnToggleTracking"> Tracking: ON</button>
+        <button id="btnFullscreen">⛶ Fullscreen</button>
+      </div>
+      <canvas id="captureCanvas"></canvas>
+    </div>
+
+    <!-- Info Panel -->
+    <div class="info-panel">
+      <h2>📊 Information Tracking</h2>
+
+      <div class="info-row">
+        <span class="info-label">Face Status</span>
+        <span class="info-value" id="faceStatus">
+          <span class="status-badge status-loading">Loading...</span>
+        </span>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">Left Eye Status</span>
+        <span class="info-value" id="eyeStatus">
+          <span class="status-badge status-loading">Loading...</span>
+        </span>
+      </div>
+
+      <!-- Iris Identity Card -->
+      <div class="iris-card" id="irisCard">
+        <div class="iris-card-title"> Identity Left Eye Iris</div>
+        <div class="iris-id-row">
+          <span class="iris-id-label">Name</span>
+          <span class="iris-id-value" style="color:#0ff;font-size:0.9rem;">Hanzteen</span>
+        </div>
+        <div class="iris-id-row">
+          <span class="iris-id-label">Position X</span>
+          <span class="iris-id-value" id="irisX">—</span>
+        </div>
+        <div class="iris-id-row">
+          <span class="iris-id-label">Position Y</span>
+          <span class="iris-id-value" id="irisY">—</span>
+        </div>
+        <div class="iris-id-row">
+          <span class="iris-id-label">EAR</span>
+          <span class="iris-id-value" id="irisEAR">—</span>
+        </div>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">Eye Indicator</span>
+        <div class="eye-indicator" id="eyeIndicator">
+          <span class="eye-indicator-label" id="eyeIndicatorLabel">Loading Detection...</span>
+          <div class="eye-dot" id="eyeDot"></div>
+        </div>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">Blink Eye Status</span>
+        <span class="info-value" id="blinkStatus">
+          <span class="status-badge status-not-detected">—</span>
+        </span>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">Blink Count</span>
+        <span class="info-value" id="blinkCount">0 kali</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Snapshot Gallery -->
+  <div class="snapshot-section">
+    <h2>🖼 Gallery</h2>
+    <div class="snapshot-gallery" id="gallery"></div>
+  </div>
+
+  <script>
+    // ===== LANDMARKS =====
+    const LEFT_EYE_CONTOUR = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246];
+    const LEFT_EYE_EAR = { p1: 33, p2: 133, p3: 160, p4: 144, p5: 158, p6: 153 };
+
+    // ===== STATE =====
+    let trackingEnabled = true;
+    let blinkCount = 0;
+    let isBlinking = false;
+    let timerSeconds = 0;
+    let timerRunning = false;
+    const EAR_THRESHOLD = 0.21;
+
+    // ===== ELEMENTS =====
+    const video        = document.getElementById('video');
+    const overlay      = document.getElementById('overlay');
+    const ctx          = overlay.getContext('2d');
+    const captureCanvas = document.getElementById('captureCanvas');
+    const captureCtx   = captureCanvas.getContext('2d');
+    const flash        = document.getElementById('flash');
+    const gallery      = document.getElementById('gallery');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const videoWrapper = document.getElementById('videoWrapper');
+    const videoStage   = document.getElementById('videoStage');
+    const btnFullscreen = document.getElementById('btnFullscreen');
+    const timerOverlay = document.getElementById('timerOverlay');
+    const timerNumber  = document.getElementById('timerNumber');
+    const timerCircle  = document.getElementById('timerCircle');
+    const sizeSelect   = document.getElementById('sizeSelect');
+    const customSizeGroup = document.getElementById('customSizeGroup');
+
+    // ===== HELPERS =====
+    function resizeOverlay() {
+      overlay.width  = video.videoWidth  || 640;
+      overlay.height = video.videoHeight || 480;
+    }
+
+    function isNativeFullscreen() {
+      return document.fullscreenElement === videoWrapper || document.webkitFullscreenElement === videoWrapper;
+    }
+
+    function isPseudoFullscreen() {
+      return videoWrapper.classList.contains('is-fullscreen');
+    }
+
+    function syncVideoStageSize() {
+      const ratio = (video.videoWidth && video.videoHeight) ? (video.videoWidth / video.videoHeight) : (4/3);
+      const fullscreenActive = isNativeFullscreen() || isPseudoFullscreen();
+      const pad = fullscreenActive ? 24 : 0;
+      let sw = fullscreenActive ? window.innerWidth - pad : Math.min(window.innerWidth * 0.9, 640);
+      let sh = sw / ratio;
+      if (fullscreenActive && sh > window.innerHeight - pad) {
+        sh = window.innerHeight - pad;
+        sw = sh * ratio;
+      }
+      videoStage.style.width  = sw + 'px';
+      videoStage.style.height = sh + 'px';
+    }
+
+    function dist(a, b) {
+      return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+    }
+
+    function computeEAR(lm, w, h) {
+      const p = i => ({ x: lm[i].x * w, y: lm[i].y * h });
+      const { p1, p2, p3, p4, p5, p6 } = LEFT_EYE_EAR;
+      return (dist(p(p3), p(p4)) + dist(p(p5), p(p6))) / (2 * dist(p(p1), p(p2)));
+    }
+
+    function getGazeDirection(xPct) {
+      if (xPct < 35) return '← Kiri';
+      if (xPct > 65) return '→ Kanan';
+      return '● Tengah';
+    }
+
+    // ===== DRAW RADAR =====
+    function drawLeftEye(lm, w, h) {
+      ctx.save();
+
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      LEFT_EYE_CONTOUR.forEach(idx => {
+        const x = (1 - lm[idx].x) * w;
+        const y = lm[idx].y * h;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      });
+
+      const pad = 16;
+      minX -= pad; maxX += pad;
+      minY -= pad; maxY += pad;
+      const boxW = maxX - minX;
+      const boxH = maxY - minY;
+
+      const radarColor = '#00ffcc';
+      const radarGlow  = 'rgba(0,255,204,0.4)';
+      const cornerLen  = 18;
+
+      // Glow shadow
+      ctx.shadowColor = radarColor;
+      ctx.shadowBlur  = 12;
+      ctx.strokeStyle = radarColor;
+      ctx.lineWidth   = 2;
+
+      // Corner brackets
+      const corners = [
+        [minX, minY, cornerLen, 0, 0, cornerLen],
+        [maxX, minY, -cornerLen, 0, 0, cornerLen],
+        [minX, maxY, cornerLen, 0, 0, -cornerLen],
+        [maxX, maxY, -cornerLen, 0, 0, -cornerLen],
+      ];
+      corners.forEach(([cx, cy, dx1, dy1, dx2, dy2]) => {
+        ctx.beginPath();
+        ctx.moveTo(cx + dx1, cy + dy1);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(cx + dx2, cy + dy2);
+        ctx.stroke();
+      });
+
+      ctx.shadowBlur = 0;
+
+      // Scanning line
+      const scanY = minY + ((Math.sin(Date.now() / 400) + 1) / 2) * boxH;
+      const grad = ctx.createLinearGradient(minX, scanY, maxX, scanY);
+      grad.addColorStop(0, 'transparent');
+      grad.addColorStop(0.5, radarGlow);
+      grad.addColorStop(1, 'transparent');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(minX, scanY);
+      ctx.lineTo(maxX, scanY);
+      ctx.stroke();
+
+      // Label box di bawah
+      ctx.font = 'bold 11px "Courier New", monospace';
+      const eye33x = (1 - lm[33].x) * w;
+      const eye33y = lm[33].y * h;
+      const xPct = Math.round((1 - lm[33].x) * 100);
+      const yPct = Math.round(lm[33].y * 100);
+      const ear = computeEAR(lm, w, h);
+      const eyeW = Math.round(boxW);
+      const eyeH = Math.round(boxH);
+      const gaze = getGazeDirection(xPct);
+      const condition = ear < EAR_THRESHOLD ? 'BERKEDIP' : (ear > 0.3 ? 'TERBUKA' : 'SETENGAH');
+
+      const lines = [
+        { label: 'LEFT EYE IDENTITY', value: '', isTitle: true },
+        { label: 'NAME', value: 'Hanzteen' },
+        { label: 'POS X', value: `${xPct}%` },
+        { label: 'POS Y', value: `${yPct}%` },
+        { label: 'EAR', value: ear.toFixed(3) },
+      ];
+
+      const lineH = 16;
+      const boxPad = 8;
+      const labelBoxW = 180;
+      const labelBoxH = lines.length * lineH + boxPad * 2;
+      const labelX = minX;
+      const labelY = maxY + 10;
+
+      // Background
+      ctx.fillStyle = 'rgba(0,10,20,0.88)';
+      ctx.strokeStyle = radarColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(labelX, labelY, labelBoxW, labelBoxH, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // Connector line
+      ctx.strokeStyle = radarColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(minX + 14, maxY);
+      ctx.lineTo(minX + 14, labelY);
+      ctx.stroke();
+
+      // Text lines
+      lines.forEach((line, i) => {
+        const ly = labelY + boxPad + i * lineH + lineH - 4;
+        if (line.isTitle) {
+          ctx.fillStyle = radarColor;
+          ctx.font = 'bold 10px "Courier New", monospace';
+          ctx.fillText(line.label, labelX + boxPad, ly);
+        } else {
+          ctx.fillStyle = '#556677';
+          ctx.font = '10px "Courier New", monospace';
+          ctx.fillText(line.label + ':', labelX + boxPad, ly);
+          ctx.fillStyle = '#88ffcc';
+          ctx.font = 'bold 10px "Courier New", monospace';
+          ctx.fillText(line.value, labelX + boxPad + 58, ly);
+        }
+      });
+
+      ctx.restore();
+      return { x: lm[33].x, y: lm[33].y, xPct, yPct, ear, eyeW, eyeH };
+    }
+
+    // ===== UPDATE INFO PANEL =====
+    function updateInfoPanel(results) {
+      const w = overlay.width;
+      const h = overlay.height;
+
+      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+        document.getElementById('faceStatus').innerHTML = '<span class="status-badge status-not-detected">Tidak Terdeteksi</span>';
+        document.getElementById('eyeStatus').innerHTML  = '<span class="status-badge status-not-detected">Tidak Terdeteksi</span>';
+        ['irisX','irisY','irisEAR'].forEach(id => {
+          document.getElementById(id).textContent = '—';
+        });
+        document.getElementById('blinkStatus').innerHTML = '<span class="status-badge status-not-detected">—</span>';
+        document.getElementById('eyeDot').style.display = 'none';
+        document.getElementById('eyeIndicatorLabel').style.display = 'block';
+        return;
+      }
+
+      const lm = results.multiFaceLandmarks[0];
+      document.getElementById('faceStatus').innerHTML = '<span class="status-badge status-detected">Terdeteksi ✓</span>';
+
+      const ear = computeEAR(lm, w, h);
+
+      // Blink
+      if (ear < EAR_THRESHOLD) {
+        if (!isBlinking) {
+          isBlinking = true;
+          blinkCount++;
+          document.getElementById('blinkCount').textContent = blinkCount + ' kali';
+        }
+        document.getElementById('blinkStatus').innerHTML = '<span class="status-badge status-loading">Berkedip 👁️</span>';
+      } else {
+        isBlinking = false;
+        document.getElementById('blinkStatus').innerHTML = '<span class="status-badge status-detected">Terbuka ✓</span>';
+      }
+
+      // Draw radar
+      const info = drawLeftEye(lm, w, h);
+
+      if (info) {
+        document.getElementById('eyeStatus').innerHTML = '<span class="status-badge status-detected">Terdeteksi ✓</span>';
+
+        const xPct = info.xPct;
+        const yPct = info.yPct;
+
+        document.getElementById('irisX').textContent   = xPct + '%';
+        document.getElementById('irisY').textContent   = yPct + '%';
+        document.getElementById('irisEAR').textContent = info.ear.toFixed(3);
+
+        // Eye dot
+        const indicator = document.getElementById('eyeIndicator');
+        const iw = indicator.clientWidth;
+        const ih = indicator.clientHeight;
+        const dot = document.getElementById('eyeDot');
+        dot.style.display = 'block';
+        document.getElementById('eyeIndicatorLabel').style.display = 'none';
+        dot.style.left = ((1 - info.x) * iw) + 'px';
+        dot.style.top  = (info.y * ih) + 'px';
+      } else {
+        document.getElementById('eyeStatus').innerHTML = '<span class="status-badge status-not-detected">Tidak Terdeteksi</span>';
+      }
+    }
+
+    // ===== MEDIAPIPE =====
+    function onResults(results) {
+      resizeOverlay();
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      if (!trackingEnabled) return;
+      updateInfoPanel(results);
+    }
+
+    const faceMesh = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    faceMesh.onResults(onResults);
+
+    const camera = new Camera(video, {
+      onFrame: async () => { await faceMesh.send({ image: video }); },
+      width: 640, height: 480
+    });
+
+    camera.start().then(() => {
+      loadingOverlay.style.display = 'none';
+      syncVideoStageSize();
+    }).catch(err => {
+      loadingOverlay.innerHTML = `
+        <div style="color:#f87171; font-size:1rem;">Access Failed</div>
+        <div style="color:#555; font-size:0.8rem;">${err.message}</div>
+      `;
+    });
+
+    // ===== PHOTO SIZE =====
+    sizeSelect.addEventListener('change', () => {
+      customSizeGroup.style.display = sizeSelect.value === 'custom' ? 'flex' : 'none';
+    });
+
+    function getPhotoSize() {
+      const val = sizeSelect.value;
+      if (val === 'custom') {
+        const w = parseInt(document.getElementById('customW').value) || 1280;
+        const h = parseInt(document.getElementById('customH').value) || 720;
+        return { w, h };
+      }
+      const [w, h] = val.split('x').map(Number);
+      return { w, h };
+    }
+
+    // ===== TIMER BUTTONS =====
+    document.querySelectorAll('.timer-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        timerSeconds = parseInt(btn.dataset.timer);
+      });
+    });
+
+    // ===== TIMER COUNTDOWN =====
+    function runTimer(seconds, callback) {
+      if (seconds === 0) { callback(); return; }
+      timerRunning = true;
+      timerOverlay.style.display = 'flex';
+      let remaining = seconds;
+      const circumference = 2 * Math.PI * 70;
+
+      function tick() {
+        timerNumber.textContent = remaining;
+        timerNumber.classList.remove('show');
+        void timerNumber.offsetWidth;
+        timerNumber.classList.add('show');
+
+        // Ring animation
+        const progress = remaining / seconds;
+        timerCircle.style.strokeDashoffset = circumference * (1 - progress);
+
+        if (remaining === 0) {
+          timerOverlay.style.display = 'none';
+          timerRunning = false;
+          callback();
+          return;
+        }
+        remaining--;
+        setTimeout(tick, 1000);
+      }
+      tick();
+    }
+
+    // ===== CAPTURE PHOTO =====
+    function doCapture() {
+      const size = getPhotoSize();
+      const vw = video.videoWidth  || 640;
+      const vh = video.videoHeight || 480;
+
+      captureCanvas.width  = size.w;
+      captureCanvas.height = size.h;
+
+      // Scale factors
+      const scaleX = size.w / vw;
+      const scaleY = size.h / vh;
+
+      captureCtx.save();
+      captureCtx.translate(size.w, 0);
+      captureCtx.scale(-1, 1);
+      captureCtx.drawImage(video, 0, 0, size.w, size.h);
+      captureCtx.restore();
+
+      // Draw overlay scaled
+      captureCtx.save();
+      captureCtx.scale(scaleX, scaleY);
+      captureCtx.drawImage(overlay, 0, 0);
+      captureCtx.restore();
+
+      const dataUrl = captureCanvas.toDataURL('image/png');
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('id-ID');
+      const sizeLabel = `${size.w}×${size.h}`;
+
+      // Flash
+      flash.classList.remove('active');
+      void flash.offsetWidth;
+      flash.classList.add('active');
+
+      // Gallery
+      const item = document.createElement('div');
+      item.className = 'snapshot-item';
+      const thumbW = 150;
+      const thumbH = Math.round(150 * (size.h / size.w));
+      item.innerHTML = `
+        <img src="${dataUrl}" width="${thumbW}" height="${thumbH}" style="width:${thumbW}px;height:${thumbH}px;" title="Klik untuk unduh"/>
+        <div class="snap-label">${timeStr} · ${sizeLabel}</div>
+      `;
+      item.addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `foto-mata-kiri-${Date.now()}.png`;
+        a.click();
+      });
+      gallery.prepend(item);
+    }
+
+    document.getElementById('btnCapture').addEventListener('click', () => {
+      if (timerRunning) return;
+      runTimer(timerSeconds, doCapture);
+    });
+
+    // ===== TOGGLE TRACKING =====
+    document.getElementById('btnToggleTracking').addEventListener('click', () => {
+      trackingEnabled = !trackingEnabled;
+      const btn = document.getElementById('btnToggleTracking');
+      if (trackingEnabled) {
+        btn.textContent = '🎯 Tracking: ON';
+        btn.style.color = '#00c6ff';
+        btn.style.borderColor = '#00c6ff55';
+      } else {
+        btn.textContent = '⏹️ Tracking: OFF';
+        btn.style.color = '#f87171';
+        btn.style.borderColor = '#f8717155';
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+      }
+    });
+
+    // ===== FULLSCREEN =====
+    function updateFullscreenButton() {
+      const active = isNativeFullscreen() || isPseudoFullscreen();
+      btnFullscreen.textContent = active ? '🡼 Keluar Fullscreen' : '⛶ Fullscreen';
+      syncVideoStageSize();
+    }
+
+    btnFullscreen.addEventListener('click', async () => {
+      try {
+        if (isNativeFullscreen()) {
+          document.exitFullscreen ? await document.exitFullscreen() : document.webkitExitFullscreen?.();
+        } else if (isPseudoFullscreen()) {
+          videoWrapper.classList.remove('is-fullscreen');
+          updateFullscreenButton();
+        } else {
+          if (videoWrapper.requestFullscreen) {
+            await videoWrapper.requestFullscreen();
+          } else if (videoWrapper.webkitRequestFullscreen) {
+            videoWrapper.webkitRequestFullscreen();
+          } else {
+            videoWrapper.classList.add('is-fullscreen');
+            updateFullscreenButton();
+          }
+        }
+      } catch {
+        videoWrapper.classList.toggle('is-fullscreen');
+        updateFullscreenButton();
+      }
+    });
+
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+    window.addEventListener('resize', syncVideoStageSize);
+    video.addEventListener('loadedmetadata', () => { resizeOverlay(); syncVideoStageSize(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && isPseudoFullscreen()) {
+        videoWrapper.classList.remove('is-fullscreen');
+        updateFullscreenButton();
+      }
+    });
+  </script>
+</body>
+</html>
